@@ -1,4 +1,5 @@
 # FIT-U: Your AI-Powered Fitness Assistant 💪🚀  
+<h2>https://fit-u.onrender.com/</h2>  
 
 Welcome to **FIT-U**, an AI-powered fitness application designed to make your workouts smarter, easier, and more effective. Hosted on **Render**, this app leverages **computer vision** and **pose estimation** to track your exercises in real-time, helping you stay on top of your fitness goals.  
 
@@ -34,18 +35,22 @@ Welcome to **FIT-U**, an AI-powered fitness application designed to make your wo
 ---
 
 ## 🚀 How It Works  
-1. Visit the app via the hosted URL on Render.  
+1. Visit the app via the hosted URL on Render: [FIT-U](https://fit-u.onrender.com).  
 2. Allow camera access for pose detection.  
 3. Select the exercise (currently supports **bicep curls**).  
 4. Start working out! The app will track your reps and provide real-time feedback.  
 
 ---
 
-## 📸 Screenshots  
 
+## 📸 Screenshots  
 *Real-time rep counting and stage detection with angle visualization.*  
 
----
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/eac781c7-1b63-40c0-a59c-1fd6770ce696" alt="Screenshot 1" width="45%">
+  <img src="https://github.com/user-attachments/assets/fb0aae1a-a328-45e8-9e6d-9671faa1cdab" alt="Screenshot 2" width="45%">
+</div>
+
 ---
 
 ## 🌟 Contributing  
@@ -60,7 +65,7 @@ Your contributions are always welcome and appreciated!
 
 ## 📬 Feedback  
 Have questions, suggestions, or feedback? I'd love to hear from you!  
-Feel free to reach out via [Linkedin](https://www.linkedin.com/in/mridulchdry) or open an issue in the repository.  
+Feel free to reach out via [LinkedIn](https://www.linkedin.com/in/mridulchdry) or open an issue in the repository.  
 
 ---
 
