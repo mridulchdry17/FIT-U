@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Bicep Curl Counter</title>
+</head>
+<body>
+    <h1>Bicep Curl Counter</h1>
+    <h3>Wait for 2-3 Seconds Camera is Opening </h3>
+    <div>
+        <img src="{{ url_for('video_feed_bicep') }}" alt="Bicep Curl Video Feed">
+    </div>
+    <form action="{{ url_for('reset_counter') }}" method="get">
+        <button type="submit">Reset Counter</button>
+    </form>
+    <a href="/">Back To Home Page</a>
+</body>
+</html>
