@@ -2,13 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Bicep Curl Counter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bicep Curl Tracker</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css">
     <style>
-        /* Video container style */
         video {
             width: 100%;
+            max-width: 640px;
             height: auto;
             background-color: black;
+            margin: 0 auto;
+            display: block;
+            border: 2px solid #ddd;
         }
         #counter {
             position: absolute;
@@ -16,56 +21,61 @@
             left: 20px;
             background-color: rgba(0, 0, 0, 0.6);
             color: white;
-            font-size: 20px;
+            font-size: 18px;
             padding: 10px;
+            border-radius: 8px;
         }
     </style>
 </head>
 <body>
-    <h1>Bicep Curl Counter</h1>
-    <h3>Wait for 2-3 Seconds Camera is Opening </h3>
+    <div class="container mt-3">
+        <h1 class="text-center">Bicep Curl Tracker</h1>
+        <p class="text-center">Your reps and angles will be tracked and displayed in real-time.</p>
 
-    <!-- Container for the webcam video -->
-    <video id="video" autoplay playsinline></video>
-    <div id="counter">
-        <h2>Reps: <span id="repCount">0</span></h2>
-        <h3>Stage: <span id="stage">Loading...</span></h3>
+        <div class="text-center">
+            <a href="{{ url_for('reset_counter') }}" class="btn btn-danger">Reset Counter</a>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
+        </div>
+
+        <div class="mt-4 text-center">
+            <h3>Camera Feed:</h3>
+            <video id="video" autoplay playsinline></video>
+            <div id="counter">
+                <h2>Reps: <span id="repCount">0</span></h2>
+                <h3>Stage: <span id="stage">Loading...</span></h3>
+            </div>
+        </div>
     </div>
-
-    <form action="{{ url_for('reset_counter') }}" method="get">
-        <button type="submit">Reset Counter</button>
-    </form>
-
-    <a href="/">Back To Home Page</a>
 
     <script>
         // Access webcam using WebRTC
         async function startVideo() {
             const videoElement = document.getElementById('video');
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: true
-            });
-            videoElement.srcObject = stream;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = stream;
+            } catch (error) {
+                console.error("Error accessing webcam:", error);
+            }
         }
 
         startVideo();
 
-        // WebSocket or other method to handle real-time updates can be used to send rep count and stage data to the front end.
-        // For simplicity, we will simulate changes.
+        // Simulate live updates for demo purposes
         let counter = 0;
-        let stage = "up";  // You can dynamically update this based on the video analysis from backend
+        let stage = "up"; // Replace with real-time updates from the backend
 
         function updateCounter() {
-            document.getElementById('repCount').textContent = counter;
-            document.getElementById('stage').textContent = stage;
+            document.getElementById("repCount").textContent = counter;
+            document.getElementById("stage").textContent = stage;
         }
 
-        // For demo purpose, simulate rep counting
+        // Simulate updating reps and stage every few seconds
         setInterval(() => {
             counter++;
-            stage = (stage === "up") ? "down" : "up";
+            stage = stage === "up" ? "down" : "up";
             updateCounter();
-        }, 5000);  // Simulate a rep every 5 seconds (you can replace this with real data from the backend)
+        }, 5000); // Simulates a rep every 5 seconds (replace with backend updates)
     </script>
 </body>
 </html>
