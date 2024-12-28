@@ -91,9 +91,9 @@ def generate_frames():
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
 
                 # Curl counter logic
-                if smoothed_angle > 170:
+                if smoothed_angle > 160:
                     stage = "down"
-                if smoothed_angle < 20 and stage == "down":
+                if smoothed_angle < 30 and stage == "down":
                     stage = "up"
                     counter += 1
                     print(f"Reps: {counter}")
