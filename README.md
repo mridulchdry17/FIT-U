@@ -46,10 +46,29 @@ Welcome to **FIT-U**, an AI-powered fitness application designed to make your wo
 *Real-time rep counting and stage detection with angle visualization.*  
 
 ---
+---
 
-## 🛠️ Installation (For Local Development)  
-To run the app locally:  
-1. Clone the repository:  
-   ```bash  
-   git clone https://github.com/your-username/your-repo.git  
-   cd your-repo  
+## 🌟 Contributing  
+Want to contribute? It's simple!  
+1. **Fork the Repository**: Click the "Fork" button on the top right of this page.  
+2. **Make Your Changes**: Work on new features, fix bugs, or improve documentation.  
+3. **Submit a Pull Request**: Once you're done, submit a pull request and let us know why your changes are awesome!  
+
+Your contributions are always welcome and appreciated!  
+
+---
+
+## 📬 Feedback  
+Have questions, suggestions, or feedback? I'd love to hear from you!  
+Feel free to reach out via [Linkedin](https://www.linkedin.com/in/mridulchdry) or open an issue in the repository.  
+
+---
+
+## ❤️ Support  
+If you like this project, please:  
+- **Give it a ⭐**: It means a lot and helps others discover the project.  
+- **Share it with your network**: Spread the word and let others know about this fitness app!  
+
+---
+
+Stay tuned for more updates and features. Let’s make fitness smarter, together! 💪  
