@@ -1,4 +1,4 @@
-from flask import Flask, render_template, Response , redirect,url_for
+from flask import Flask, render_template, Response, redirect, url_for
 import cv2
 import numpy as np
 import mediapipe as mp
@@ -6,18 +6,14 @@ import mediapipe as mp
 # Flask app setup
 app = Flask(__name__)
 
-# Mediapipe and OpenCV Setup
+# Mediapipe and OpenCV setup
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
-
-# Global variables for pose detection
 pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
-# Variable 
+# Default counter and stage values
 counter = 0
 stage = None
-cap = None 
-
 
 def calculate_angles(a, b, c):
     a = np.array(a)
@@ -33,11 +29,8 @@ def calculate_angles(a, b, c):
     return angle
 
 
-# Generate frames for bicep curl detection
 def generate_frame_bicep():
-    global cap, counter, stage
-
-    # Initialize the camera
+    global counter, stage
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
@@ -49,18 +42,18 @@ def generate_frame_bicep():
             if not ret:
                 break
 
-            # Recolor images
+            # Recolor images for Mediapipe
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image.flags.writeable = False
 
-            # Make detection
+            # Make pose detection
             results = pose.process(image)
 
-            # Recolor Back to BGR
+            # Recolor back to BGR
             image.flags.writeable = True
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-            # Extract landmarks and perform angle calculations
+            # Extract landmarks and calculate angles
             try:
                 landmarks = results.pose_landmarks.landmark
                 shoulder = [
@@ -78,7 +71,7 @@ def generate_frame_bicep():
 
                 angle = calculate_angles(shoulder, elbow, wrist)
 
-                # Visualize angle
+                # Visualize angle on the image
                 cv2.putText(
                     image,
                     str(int(angle)),
@@ -96,11 +89,10 @@ def generate_frame_bicep():
                 if angle < 30 and stage == "down":
                     stage = "up"
                     counter += 1
-                    print(counter)
             except:
                 pass
 
-            # Render counter and stage
+            # Render counter and stage on the image
             cv2.rectangle(image, (0, 0), (225, 73), (245, 117, 16), -1)
             cv2.putText(image, "REPS", (15, 12), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
             cv2.putText(image, str(counter), (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2, cv2.LINE_AA)
@@ -120,21 +112,24 @@ def generate_frame_bicep():
             ret, buffer = cv2.imencode(".jpg", image)
             frame = buffer.tobytes()
             yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+
     finally:
-        if cap:
-            cap.release()
+        cap.release()
         cv2.destroyAllWindows()
 
 
 @app.route("/")
 def index():
+    # Reset counter on page load
+    global counter
+    counter = 0
     return render_template("index.html")
 
 
 @app.route("/bicep_curl")
 def bicep_curl():
     global counter
-    counter = 0 
+    counter = 0  # Reset counter when moving to the bicep curl page
     return render_template("bicep_curl.html")
 
 
@@ -142,11 +137,13 @@ def bicep_curl():
 def video_feed_bicep():
     return Response(generate_frame_bicep(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
+
 @app.route('/reset_counter')
 def reset_counter():
     global counter
-    counter = 0 
+    counter = 0  # Reset counter
     return redirect(url_for('bicep_curl'))
 
+
 if __name__ == "__main__":
-    app.run(debug=False) # debug is false its in production now 
+    app.run(debug=True)
