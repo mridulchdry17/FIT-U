@@ -1,17 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Bicep Curl Counter</title>
 </head>
 <body>
     <h1>Bicep Curl Counter</h1>
-    <h3>Wait for 2-3 Seconds Camera is Opening </h3>
+    <h3>Wait for 2-3 seconds while the camera is opening...</h3>
+
     <div>
-        <img src="{{ url_for('video_feed_bicep') }}" alt="Bicep Curl Video Feed">
+        <video id="video" width="640" height="480" autoplay></video>
+        <form action="{{ url_for('reset_counter') }}" method="get">
+            <button type="submit">Reset Counter</button>
+        </form>
+        <a href="/">Back to Home Page</a>
     </div>
-    <form action="{{ url_for('reset_counter') }}" method="get">
-        <button type="submit">Reset Counter</button>
-    </form>
-    <a href="/">Back To Home Page</a>
+
+    <script>
+        // Access the camera and stream to video element
+        const videoElement = document.getElementById('video');
+
+        async function startCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+            });
+            videoElement.srcObject = stream;
+        }
+
+        startCamera();
+    </script>
 </body>
 </html>
