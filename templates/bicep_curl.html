@@ -3,31 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <title>Bicep Curl Counter</title>
+    <style>
+        /* Video container style */
+        video {
+            width: 100%;
+            height: auto;
+            background-color: black;
+        }
+        #counter {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            font-size: 20px;
+            padding: 10px;
+        }
+    </style>
 </head>
 <body>
     <h1>Bicep Curl Counter</h1>
-    <h3>Wait for 2-3 seconds while the camera is opening...</h3>
+    <h3>Wait for 2-3 Seconds Camera is Opening </h3>
 
-    <div>
-        <video id="video" width="640" height="480" autoplay></video>
-        <form action="{{ url_for('reset_counter') }}" method="get">
-            <button type="submit">Reset Counter</button>
-        </form>
-        <a href="/">Back to Home Page</a>
+    <!-- Container for the webcam video -->
+    <video id="video" autoplay playsinline></video>
+    <div id="counter">
+        <h2>Reps: <span id="repCount">0</span></h2>
+        <h3>Stage: <span id="stage">Loading...</span></h3>
     </div>
 
-    <script>
-        // Access the camera and stream to video element
-        const videoElement = document.getElementById('video');
+    <form action="{{ url_for('reset_counter') }}" method="get">
+        <button type="submit">Reset Counter</button>
+    </form>
 
-        async function startCamera() {
+    <a href="/">Back To Home Page</a>
+
+    <script>
+        // Access webcam using WebRTC
+        async function startVideo() {
+            const videoElement = document.getElementById('video');
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: true,
+                video: true
             });
             videoElement.srcObject = stream;
         }
 
-        startCamera();
+        startVideo();
+
+        // WebSocket or other method to handle real-time updates can be used to send rep count and stage data to the front end.
+        // For simplicity, we will simulate changes.
+        let counter = 0;
+        let stage = "up";  // You can dynamically update this based on the video analysis from backend
+
+        function updateCounter() {
+            document.getElementById('repCount').textContent = counter;
+            document.getElementById('stage').textContent = stage;
+        }
+
+        // For demo purpose, simulate rep counting
+        setInterval(() => {
+            counter++;
+            stage = (stage === "up") ? "down" : "up";
+            updateCounter();
+        }, 5000);  // Simulate a rep every 5 seconds (you can replace this with real data from the backend)
     </script>
 </body>
 </html>
