@@ -114,18 +114,28 @@
         async function processFrames() {
             const ctx = outputCanvas.getContext('2d');
             let frameCount = 0;
+            let lastProcessedTime = 0;
+            const PROCESS_INTERVAL = 100; // Process every 100ms
             
-            async function processFrame() {
-                frameCount++;
-                
-                // Draw every frame but only process every 3rd frame
+            async function processFrame(timestamp) {
+                // Always draw the frame for smooth video
                 ctx.drawImage(userVideo, 0, 0, outputCanvas.width, outputCanvas.height);
                 
-                if (!isProcessing && frameCount % 3 === 0) { // Process every 3rd frame
+                // Check if enough time has passed since last processing
+                if (!isProcessing && (timestamp - lastProcessedTime) > PROCESS_INTERVAL) {
                     isProcessing = true;
+                    lastProcessedTime = timestamp;
+                    
                     try {
-                        // Reduce image quality to 0.5 (50%)
-                        const frameData = outputCanvas.toDataURL('image/jpeg', 0.5);
+                        // Reduce size before sending
+                        const smallCanvas = document.createElement('canvas');
+                        const smallCtx = smallCanvas.getContext('2d');
+                        smallCanvas.width = 320;  // Half size
+                        smallCanvas.height = 240; // Half size
+                        smallCtx.drawImage(outputCanvas, 0, 0, 320, 240);
+                        
+                        // Reduce quality to 0.3 (30%)
+                        const frameData = smallCanvas.toDataURL('image/jpeg', 0.3);
                         
                         const response = await fetch('/process_frame', {
                             method: 'POST',
@@ -142,11 +152,19 @@
                             stageText.textContent = result.stage || '--';
                         }
                         
-                        // Draw landmarks
+                        // Draw landmarks efficiently
                         if (result.processed_frame) {
                             const img = new Image();
                             img.onload = () => {
-                                ctx.drawImage(img, 0, 0);
+                                // Use double buffering to prevent flickering
+                                const tempCanvas = document.createElement('canvas');
+                                const tempCtx = tempCanvas.getContext('2d');
+                                tempCanvas.width = outputCanvas.width;
+                                tempCanvas.height = outputCanvas.height;
+                                
+                                tempCtx.drawImage(userVideo, 0, 0, outputCanvas.width, outputCanvas.height);
+                                tempCtx.drawImage(img, 0, 0, outputCanvas.width, outputCanvas.height);
+                                ctx.drawImage(tempCanvas, 0, 0);
                             };
                             img.src = result.processed_frame;
                         }
@@ -159,7 +177,7 @@
                 requestAnimationFrame(processFrame);
             }
             
-            processFrame();
+            requestAnimationFrame(processFrame);
         }
 
         async function resetCounter() {

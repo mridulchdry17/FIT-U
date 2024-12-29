@@ -37,22 +37,19 @@ def process_frame():
         np_arr = np.frombuffer(frame_bytes, np.uint8)
         frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         
-        # Resize frame to reduce processing time
-        frame = cv2.resize(frame, (640, 480))
+        # Process at lower resolution
+        frame = cv2.resize(frame, (320, 240))
         
         with mp_pose.Pose(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5,
-            model_complexity=0  # Use simpler model for faster processing
+            model_complexity=0,  # Use simplest model
+            smooth_landmarks=True  # Enable landmark smoothing
         ) as pose:
-            # Convert to RGB
+            # Process frame
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image.flags.writeable = False
-            
-            # Process the frame
             results = pose.process(image)
-            
-            # Convert back to BGR
             image.flags.writeable = True
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             
@@ -76,17 +73,18 @@ def process_frame():
                     stage = "up"
                     counter += 1
             
-            # Draw landmarks
-            mp_drawing.draw_landmarks(
-                image, 
-                results.pose_landmarks, 
-                mp_pose.POSE_CONNECTIONS,
-                mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=1),
-                mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=1)
-            )
+            # Optimize landmark drawing
+            if results.pose_landmarks:
+                mp_drawing.draw_landmarks(
+                    image, 
+                    results.pose_landmarks, 
+                    mp_pose.POSE_CONNECTIONS,
+                    mp_drawing.DrawingSpec(color=(245,117,66), thickness=1, circle_radius=1),
+                    mp_drawing.DrawingSpec(color=(245,66,230), thickness=1, circle_radius=1)
+                )
             
-            # Compress image before sending back
-            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 50]  # 50% quality
+            # Highly compress output image
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 30]  # 30% quality
             _, buffer = cv2.imencode('.jpg', image, encode_param)
             processed_frame = base64.b64encode(buffer).decode('utf-8')
             
