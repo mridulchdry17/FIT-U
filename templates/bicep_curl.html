@@ -3,61 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bicep Curl Tracker</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css">
+    <title>Bicep Curl Counter</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .video-container {
+            margin: 20px 0;
+            position: relative;
+            display: inline-block;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px;
+            cursor: pointer;
+            border: none;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
         #userVideo {
-            display: none; /* Hide the video element */
+            display: none;
         }
-        #videoCanvas {
-            border: 2px solid black;
-            width: 100%;
-            max-width: 640px;
-            background-color: #f8f9fa;
+        #outputCanvas {
+            border: 2px solid #333;
+            max-width: 100%;
         }
-        .rep-counter {
+        .counter-display {
             position: absolute;
             top: 10px;
             left: 10px;
-            background-color: rgba(245, 117, 16, 0.8);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
             padding: 10px;
             border-radius: 5px;
-            color: white;
+            font-size: 18px;
+        }
+        #cameraError {
+            color: red;
+            margin: 10px 0;
+            display: none;
         }
     </style>
 </head>
 <body>
-    <div class="container mt-3">
-        <h1 class="text-center">Bicep Curl Tracker</h1>
-        <p class="text-center">Your reps and angles will be tracked and displayed in real-time.</p>
-
-        <div class="text-center">
-            <button id="startButton" class="btn btn-primary mb-3">Start Camera</button>
-            <button id="resetButton" class="btn btn-danger mb-3">Reset Counter</button>
-            <a href="{{ url_for('index') }}" class="btn btn-secondary mb-3">Back to Home</a>
+    <div class="container">
+        <h1>Bicep Curl Counter</h1>
+        <button id="startButton" class="button">Start Camera</button>
+        <button id="resetButton" class="button">Reset Counter</button>
+        <a href="/" class="button">Back to Home</a>
+        
+        <div id="cameraError">
+            Unable to access camera. Please ensure you've granted camera permissions.
         </div>
-
-        <div class="mt-4 text-center">
-            <h3>Camera Feed:</h3>
-            <div id="cameraError" class="alert alert-danger d-none">
-                Unable to access camera. Please ensure:
-                <ul class="mb-0 text-start">
-                    <li>Camera is connected and not being used by another application</li>
-                    <li>You've granted camera permissions in your browser</li>
-                    <li>You're using a supported browser (Chrome/Firefox/Edge recommended)</li>
-                </ul>
-                <button class="btn btn-primary mt-2" onclick="retryCamera()">Retry Camera Access</button>
-            </div>
-            <div id="loadingMessage" class="alert alert-info d-none">
-                Initializing camera... Please wait and accept any permission requests.
-            </div>
-            <div id="videoContainer" class="d-none position-relative">
-                <video id="userVideo" autoplay playsinline></video>
-                <canvas id="videoCanvas"></canvas>
-                <div class="rep-counter">
-                    <h4 class="mb-0">Reps: <span id="repCounter">0</span></h4>
-                    <h4 class="mb-0">Stage: <span id="stageIndicator">--</span></h4>
-                </div>
+        
+        <div class="video-container">
+            <video id="userVideo" autoplay playsinline></video>
+            <canvas id="outputCanvas" width="640" height="480"></canvas>
+            <div class="counter-display">
+                Reps: <span id="repCount">0</span><br>
+                Stage: <span id="stageText">--</span>
             </div>
         </div>
     </div>
@@ -65,22 +83,15 @@
     <script>
         const startButton = document.getElementById('startButton');
         const resetButton = document.getElementById('resetButton');
-        const videoContainer = document.getElementById('videoContainer');
         const userVideo = document.getElementById('userVideo');
-        const videoCanvas = document.getElementById('videoCanvas');
-        const loadingMessage = document.getElementById('loadingMessage');
+        const outputCanvas = document.getElementById('outputCanvas');
+        const repCount = document.getElementById('repCount');
+        const stageText = document.getElementById('stageText');
         const cameraError = document.getElementById('cameraError');
-        const repCounter = document.getElementById('repCounter');
-        const stageIndicator = document.getElementById('stageIndicator');
 
         let isProcessing = false;
-        let frameCount = 0;
 
         async function startCamera() {
-            loadingMessage.classList.remove('d-none');
-            cameraError.classList.add('d-none');
-            videoContainer.classList.add('d-none');
-
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
@@ -89,53 +100,55 @@
                         facingMode: 'user'
                     } 
                 });
-                
                 userVideo.srcObject = stream;
-                userVideo.onloadedmetadata = () => {
-                    userVideo.play();
-                    videoContainer.classList.remove('d-none');
-                    loadingMessage.classList.add('d-none');
-                    startVideoProcessing();
-                };
+                userVideo.play();
+                startButton.style.display = 'none';
+                cameraError.style.display = 'none';
+                processFrames();
             } catch (err) {
-                console.error('Error starting camera:', err);
-                loadingMessage.classList.add('d-none');
-                cameraError.classList.remove('d-none');
+                console.error('Error accessing camera:', err);
+                cameraError.style.display = 'block';
             }
         }
 
-        function startVideoProcessing() {
-            const ctx = videoCanvas.getContext('2d');
-            videoCanvas.width = 640;
-            videoCanvas.height = 480;
-
+        async function processFrames() {
+            const ctx = outputCanvas.getContext('2d');
+            let frameCount = 0;
+            
             async function processFrame() {
-                if (!isProcessing) {
+                frameCount++;
+                
+                // Draw every frame but only process every 3rd frame
+                ctx.drawImage(userVideo, 0, 0, outputCanvas.width, outputCanvas.height);
+                
+                if (!isProcessing && frameCount % 3 === 0) { // Process every 3rd frame
                     isProcessing = true;
-                    frameCount++;
-                    
                     try {
-                        // Only process every 3rd frame to reduce server load
-                        if (frameCount % 3 === 0) {
-                            ctx.drawImage(userVideo, 0, 0, videoCanvas.width, videoCanvas.height);
-                            
-                            const blob = await new Promise(resolve => videoCanvas.toBlob(resolve, 'image/jpeg'));
-                            const formData = new FormData();
-                            formData.append('frame', blob);
-
-                            const response = await fetch('/process_frame', {
-                                method: 'POST',
-                                body: formData
-                            });
-
-                            const result = await response.json();
-                            if (result.reps !== undefined) {
-                                repCounter.textContent = result.reps;
-                                stageIndicator.textContent = result.stage || '--';
-                            }
-                        } else {
-                            // Just update the display without processing
-                            ctx.drawImage(userVideo, 0, 0, videoCanvas.width, videoCanvas.height);
+                        // Reduce image quality to 0.5 (50%)
+                        const frameData = outputCanvas.toDataURL('image/jpeg', 0.5);
+                        
+                        const response = await fetch('/process_frame', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ frame: frameData })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.counter !== undefined) {
+                            repCount.textContent = result.counter;
+                            stageText.textContent = result.stage || '--';
+                        }
+                        
+                        // Draw landmarks
+                        if (result.processed_frame) {
+                            const img = new Image();
+                            img.onload = () => {
+                                ctx.drawImage(img, 0, 0);
+                            };
+                            img.src = result.processed_frame;
                         }
                     } catch (error) {
                         console.error('Error processing frame:', error);
@@ -145,23 +158,15 @@
                 }
                 requestAnimationFrame(processFrame);
             }
-
+            
             processFrame();
-        }
-
-        function retryCamera() {
-            if (userVideo.srcObject) {
-                userVideo.srcObject.getTracks().forEach(track => track.stop());
-            }
-            startCamera();
         }
 
         async function resetCounter() {
             try {
-                const response = await fetch('/reset_counter');
-                const result = await response.json();
-                repCounter.textContent = result.reps;
-                stageIndicator.textContent = '--';
+                await fetch('/reset_counter');
+                repCount.textContent = '0';
+                stageText.textContent = '--';
             } catch (error) {
                 console.error('Error resetting counter:', error);
             }
@@ -170,7 +175,7 @@
         startButton.addEventListener('click', startCamera);
         resetButton.addEventListener('click', resetCounter);
 
-        // Handle page unload
+        // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
             if (userVideo.srcObject) {
                 userVideo.srcObject.getTracks().forEach(track => track.stop());
@@ -178,4 +183,4 @@
         });
     </script>
 </body>
-</html>
+</html> 

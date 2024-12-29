@@ -1,109 +1,121 @@
-from flask import Flask, render_template, Response, redirect, url_for, jsonify, request
+from flask import Flask, render_template, Response, jsonify, request
 import cv2
-import numpy as np
 import mediapipe as mp
-import os
-from io import BytesIO
+import numpy as np
+import base64
 
-# Flask app setup
 app = Flask(__name__)
 
-# Mediapipe and OpenCV Setup
-mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
+mp_pose = mp.solutions.pose
 
-# Global variables for pose detection
-pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
-
-# Variables for bicep curl counter
+# Global variables
 counter = 0
 stage = None
 
-def calculate_angles(a, b, c):
+def calculate_angles(a,b,c):
     a = np.array(a)
     b = np.array(b)
     c = np.array(c)
-
-    radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
-    angle = np.abs(radians * 180.0 / np.pi)
-
+    
+    radians = np.arctan2(c[1]-b[1],c[0]-b[0]) - np.arctan2(a[1]-b[1],a[0]-b[0])
+    angle = np.abs(radians*180.0/np.pi)
+    
     if angle > 180.0:
         angle = 360.0 - angle
-
+    
     return angle
 
-@app.route("/process_frame", methods=['POST'])
+@app.route('/process_frame', methods=['POST'])
 def process_frame():
     global counter, stage
     
-    if 'frame' not in request.files:
-        return jsonify({'error': 'No frame provided'}), 400
-
     try:
-        # Read frame from request
-        frame_file = request.files['frame']
-        frame_bytes = frame_file.read()
+        # Get the frame data from the request
+        frame_data = request.json['frame'].split(',')[1]
+        frame_bytes = base64.b64decode(frame_data)
+        np_arr = np.frombuffer(frame_bytes, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         
-        # Convert to numpy array
-        nparr = np.frombuffer(frame_bytes, np.uint8)
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        # Process frame
-        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(image)
-
-        if results.pose_landmarks:
-            landmarks = results.pose_landmarks.landmark
+        # Resize frame to reduce processing time
+        frame = cv2.resize(frame, (640, 480))
+        
+        with mp_pose.Pose(
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5,
+            model_complexity=0  # Use simpler model for faster processing
+        ) as pose:
+            # Convert to RGB
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image.flags.writeable = False
             
-            # Get coordinates
-            shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
-                       landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
-            elbow = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
-                    landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
-            wrist = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
-                    landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
-
-            # Calculate angle
-            angle = calculate_angles(shoulder, elbow, wrist)
-
-            # Curl counter logic
-            if angle > 160:
-                stage = "down"
-            if angle < 30 and stage == "down":
-                stage = "up"
-                counter += 1
-
+            # Process the frame
+            results = pose.process(image)
+            
+            # Convert back to BGR
+            image.flags.writeable = True
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            
+            if results.pose_landmarks:
+                landmarks = results.pose_landmarks.landmark
+                
+                # Get coordinates
+                shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
+                           landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
+                elbow = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
+                        landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
+                wrist = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
+                        landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
+                
+                angle = calculate_angles(shoulder, elbow, wrist)
+                
+                # Curl counter logic
+                if angle > 160:
+                    stage = "down"
+                if angle < 30 and stage == 'down':
+                    stage = "up"
+                    counter += 1
+            
+            # Draw landmarks
+            mp_drawing.draw_landmarks(
+                image, 
+                results.pose_landmarks, 
+                mp_pose.POSE_CONNECTIONS,
+                mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=1),
+                mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=1)
+            )
+            
+            # Compress image before sending back
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 50]  # 50% quality
+            _, buffer = cv2.imencode('.jpg', image, encode_param)
+            processed_frame = base64.b64encode(buffer).decode('utf-8')
+            
             return jsonify({
-                'reps': counter,
+                'counter': counter,
                 'stage': stage,
-                'angle': angle
+                'processed_frame': f'data:image/jpeg;base64,{processed_frame}'
             })
-
-        return jsonify({
-            'reps': counter,
-            'stage': stage
-        })
-
+            
     except Exception as e:
         print(f"Error processing frame: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route("/")
+@app.route('/')
 def index():
-    return render_template("index.html")
+    return render_template('index.html')
 
-@app.route("/bicep_curl")
+@app.route('/bicep_curl')
 def bicep_curl():
     global counter
-    counter = 0
-    return render_template("bicep_curl.html")
+    counter = 0  # Reset counter when page loads
+    return render_template('bicep_curl.html')
 
 @app.route('/reset_counter')
 def reset_counter():
-    global counter
+    global counter, stage
     counter = 0
-    return jsonify({'reps': counter})
+    stage = None
+    return jsonify({'success': True})
 
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(debug=True) 
