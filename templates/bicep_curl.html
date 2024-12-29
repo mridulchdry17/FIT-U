@@ -18,8 +18,33 @@
 
         <div class="mt-4 text-center">
             <h3>Camera Feed:</h3>
-            <img src="{{ url_for('video_feed_bicep') }}" alt="Bicep Curl Feed" style="border:2px solid black; width: 100%; max-width: 640px;">
+            <div id="cameraError" class="alert alert-danger d-none">
+                Unable to access camera. Please ensure you've granted camera permissions and are using HTTPS.
+            </div>
+            <img id="videoFeed" src="{{ url_for('video_feed_bicep') }}" alt="Bicep Curl Feed" style="border:2px solid black; width: 100%; max-width: 640px;">
         </div>
     </div>
+
+    <script>
+        // Check for camera permissions
+        async function checkCameraPermissions() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream.getTracks().forEach(track => track.stop());
+                document.getElementById('cameraError').classList.add('d-none');
+            } catch (err) {
+                document.getElementById('cameraError').classList.remove('d-none');
+                console.error('Camera access error:', err);
+            }
+        }
+
+        // Handle video feed errors
+        document.getElementById('videoFeed').onerror = function() {
+            document.getElementById('cameraError').classList.remove('d-none');
+        };
+
+        // Check permissions when page loads
+        window.addEventListener('load', checkCameraPermissions);
+    </script>
 </body>
 </html>

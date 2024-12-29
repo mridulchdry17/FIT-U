@@ -1,7 +1,8 @@
-from flask import Flask, render_template, Response, redirect, url_for
+from flask import Flask, render_template, Response, redirect, url_for, jsonify
 import cv2
 import numpy as np
 import mediapipe as mp
+import os
 
 # Flask app setup
 app = Flask(__name__)
@@ -35,11 +36,21 @@ def calculate_angles(a, b, c):
 # Generate frames for bicep curl detection
 def generate_frame_bicep():
     global counter, stage
-
-    cap = cv2.VideoCapture(0)
-
-    if not cap.isOpened():
-        raise RuntimeError("Unable to access the camera.")
+    
+    # Try different camera indices or device paths
+    camera_indexes = [0, 1, '/dev/video0']
+    cap = None
+    
+    for index in camera_indexes:
+        try:
+            cap = cv2.VideoCapture(index)
+            if cap and cap.isOpened():
+                break
+        except:
+            continue
+    
+    if not cap or not cap.isOpened():
+        return jsonify({'error': 'Camera access failed'}), 500
 
     try:
         while True:
@@ -99,6 +110,8 @@ def generate_frame_bicep():
             ret, buffer = cv2.imencode(".jpg", image)
             frame = buffer.tobytes()
             yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+    except Exception as e:
+        print(f"Error in generate_frame: {str(e)}")
     finally:
         if cap:
             cap.release()
@@ -130,4 +143,5 @@ def reset_counter():
 
 
 if __name__ == "__main__":
-    app.run(debug=False)  # debug = False since it's in production now
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
