@@ -100,7 +100,7 @@ def index():
 @app.route('/bicep_curl')
 def bicep_curl():
     global counter
-    counter = 0  # Reset counter when page loads
+    # counter = 0  # Reset counter when page loads
     return render_template('bicep_curl.html')
 
 @app.route('/reset_counter')
