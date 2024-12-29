@@ -19,9 +19,21 @@
         <div class="mt-4 text-center">
             <h3>Camera Feed:</h3>
             <div id="cameraError" class="alert alert-danger d-none">
-                Unable to access camera. Please ensure you've granted camera permissions and are using HTTPS.
+                Unable to access camera. Please ensure:
+                <ul class="mb-0 text-start">
+                    <li>You're using HTTPS</li>
+                    <li>You've granted camera permissions</li>
+                    <li>You're using a modern browser (Chrome/Firefox/Edge)</li>
+                    <li>Your camera isn't being used by another application</li>
+                </ul>
             </div>
-            <img id="videoFeed" src="{{ url_for('video_feed_bicep') }}" alt="Bicep Curl Feed" style="border:2px solid black; width: 100%; max-width: 640px;">
+            <div id="loadingMessage" class="alert alert-info">
+                Initializing camera... Please wait and accept any permission requests.
+            </div>
+            <img id="videoFeed" src="{{ url_for('video_feed_bicep') }}" alt="Bicep Curl Feed" 
+                 style="border:2px solid black; width: 100%; max-width: 640px;"
+                 onerror="handleVideoError()" 
+                 onload="handleVideoLoad()">
         </div>
     </div>
 
@@ -32,19 +44,33 @@
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 stream.getTracks().forEach(track => track.stop());
                 document.getElementById('cameraError').classList.add('d-none');
+                return true;
             } catch (err) {
                 document.getElementById('cameraError').classList.remove('d-none');
                 console.error('Camera access error:', err);
+                return false;
             }
         }
 
-        // Handle video feed errors
-        document.getElementById('videoFeed').onerror = function() {
+        function handleVideoError() {
+            document.getElementById('loadingMessage').classList.add('d-none');
             document.getElementById('cameraError').classList.remove('d-none');
-        };
+            document.getElementById('videoFeed').classList.add('d-none');
+        }
+
+        function handleVideoLoad() {
+            document.getElementById('loadingMessage').classList.add('d-none');
+            document.getElementById('videoFeed').classList.remove('d-none');
+        }
 
         // Check permissions when page loads
-        window.addEventListener('load', checkCameraPermissions);
+        window.addEventListener('load', async () => {
+            document.getElementById('videoFeed').classList.add('d-none');
+            const hasPermission = await checkCameraPermissions();
+            if (!hasPermission) {
+                handleVideoError();
+            }
+        });
     </script>
 </body>
 </html>

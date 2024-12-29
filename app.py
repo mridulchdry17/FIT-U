@@ -37,81 +37,97 @@ def calculate_angles(a, b, c):
 def generate_frame_bicep():
     global counter, stage
     
-    # Try different camera indices or device paths
-    camera_indexes = [0, 1, '/dev/video0']
+    # Try different camera indices and device paths
+    camera_indexes = [0, 1, '/dev/video0', '/dev/video1']
     cap = None
     
     for index in camera_indexes:
         try:
             cap = cv2.VideoCapture(index)
             if cap and cap.isOpened():
+                print(f"Successfully opened camera with index {index}")
                 break
-        except:
+        except Exception as e:
+            print(f"Failed to open camera with index {index}: {str(e)}")
             continue
     
     if not cap or not cap.isOpened():
+        print("Failed to open any camera")
         return jsonify({'error': 'Camera access failed'}), 500
 
     try:
         while True:
             ret, frame = cap.read()
             if not ret:
+                print("Failed to grab frame")
                 break
 
-            # Recolor images
-            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            image.flags.writeable = False
-
-            # Make detection
-            results = pose.process(image)
-
-            # Recolor Back to BGR
-            image.flags.writeable = True
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-
-            # Extract landmarks and perform angle calculations
             try:
-                landmarks = results.pose_landmarks.landmark
-                shoulder = [
-                    landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
-                    landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y,
-                ]
-                elbow = [
-                    landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
-                    landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y,
-                ]
-                wrist = [
-                    landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
-                    landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y,
-                ]
+                # Recolor images
+                image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                image.flags.writeable = False
 
-                angle = calculate_angles(shoulder, elbow, wrist)
+                # Make detection
+                results = pose.process(image)
 
-                # Curl counter logic
-                if angle > 160:
-                    stage = "down"
-                if angle < 30 and stage == "down":
-                    stage = "up"
-                    counter += 1
-            except:
-                pass
+                # Recolor Back to BGR
+                image.flags.writeable = True
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-            # Render counter and stage on the frame
-            cv2.rectangle(image, (0, 0), (225, 73), (245, 117, 16), -1)
-            cv2.putText(image, f"Reps: {counter}", (15, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            cv2.putText(image, f"Stage: {stage}", (15, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                # Extract landmarks and perform angle calculations
+                try:
+                    landmarks = results.pose_landmarks.landmark
+                    shoulder = [
+                        landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
+                        landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y,
+                    ]
+                    elbow = [
+                        landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
+                        landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y,
+                    ]
+                    wrist = [
+                        landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
+                        landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y,
+                    ]
 
-            # Render pose landmarks
-            mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                                      mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=2),
-                                      mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2))
+                    angle = calculate_angles(shoulder, elbow, wrist)
 
-            # Encode the frame
-            ret, buffer = cv2.imencode(".jpg", image)
-            frame = buffer.tobytes()
-            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                    # Curl counter logic
+                    if angle > 160:
+                        stage = "down"
+                    if angle < 30 and stage == "down":
+                        stage = "up"
+                        counter += 1
+                except:
+                    pass
+
+                # Render counter and stage on the frame
+                cv2.rectangle(image, (0, 0), (225, 73), (245, 117, 16), -1)
+                cv2.putText(image, f"Reps: {counter}", (15, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                cv2.putText(image, f"Stage: {stage}", (15, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+                # Render pose landmarks
+                mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                                          mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=2),
+                                          mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2))
+
+            except Exception as e:
+                print(f"Error processing frame: {str(e)}")
+                continue
+
+            try:
+                ret, buffer = cv2.imencode(".jpg", image)
+                if not ret:
+                    print("Failed to encode frame")
+                    continue
+                frame = buffer.tobytes()
+                yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+            except Exception as e:
+                print(f"Error encoding frame: {str(e)}")
+                continue
+
     except Exception as e:
-        print(f"Error in generate_frame: {str(e)}")
+        print(f"Camera stream error: {str(e)}")
     finally:
         if cap:
             cap.release()
