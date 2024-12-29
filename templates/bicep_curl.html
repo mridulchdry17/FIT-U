@@ -12,6 +12,7 @@
         <p class="text-center">Your reps and angles will be tracked and displayed in real-time.</p>
 
         <div class="text-center">
+            <button id="startButton" class="btn btn-primary mb-3">Start Camera</button>
             <a href="{{ url_for('reset_counter') }}" class="btn btn-danger">Reset Counter</a>
             <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
         </div>
@@ -21,56 +22,110 @@
             <div id="cameraError" class="alert alert-danger d-none">
                 Unable to access camera. Please ensure:
                 <ul class="mb-0 text-start">
-                    <li>You're using HTTPS</li>
-                    <li>You've granted camera permissions</li>
-                    <li>You're using a modern browser (Chrome/Firefox/Edge)</li>
-                    <li>Your camera isn't being used by another application</li>
+                    <li>Camera is connected and not being used by another application</li>
+                    <li>You've granted camera permissions in your browser</li>
+                    <li>You're using a supported browser (Chrome/Firefox/Edge recommended)</li>
                 </ul>
+                <button class="btn btn-primary mt-2" onclick="retryCamera()">Retry Camera Access</button>
             </div>
-            <div id="loadingMessage" class="alert alert-info">
+            <div id="loadingMessage" class="alert alert-info d-none">
                 Initializing camera... Please wait and accept any permission requests.
             </div>
-            <img id="videoFeed" src="{{ url_for('video_feed_bicep') }}" alt="Bicep Curl Feed" 
-                 style="border:2px solid black; width: 100%; max-width: 640px;"
-                 onerror="handleVideoError()" 
-                 onload="handleVideoLoad()">
+            <div id="videoContainer" class="d-none">
+                <video id="userVideo" autoplay playsinline style="display: none;"></video>
+                <canvas id="videoCanvas" style="border:2px solid black; width: 100%; max-width: 640px;"></canvas>
+                <div class="mt-3">
+                    <h4>Reps: <span id="repCounter">0</span></h4>
+                    <h4>Stage: <span id="stageIndicator">--</span></h4>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // Check for camera permissions
-        async function checkCameraPermissions() {
+        const startButton = document.getElementById('startButton');
+        const videoContainer = document.getElementById('videoContainer');
+        const userVideo = document.getElementById('userVideo');
+        const videoCanvas = document.getElementById('videoCanvas');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const cameraError = document.getElementById('cameraError');
+        const repCounter = document.getElementById('repCounter');
+        const stageIndicator = document.getElementById('stageIndicator');
+
+        let isProcessing = false;
+        let reps = 0;
+        let stage = 'down';
+
+        async function startCamera() {
+            loadingMessage.classList.remove('d-none');
+            cameraError.classList.add('d-none');
+            videoContainer.classList.add('d-none');
+
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                stream.getTracks().forEach(track => track.stop());
-                document.getElementById('cameraError').classList.add('d-none');
-                return true;
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 640,
+                        height: 480,
+                        facingMode: 'user'
+                    } 
+                });
+                
+                userVideo.srcObject = stream;
+                videoContainer.classList.remove('d-none');
+                loadingMessage.classList.add('d-none');
+                
+                // Start processing frames
+                startVideoProcessing();
             } catch (err) {
-                document.getElementById('cameraError').classList.remove('d-none');
-                console.error('Camera access error:', err);
-                return false;
+                console.error('Error starting camera:', err);
+                loadingMessage.classList.add('d-none');
+                cameraError.classList.remove('d-none');
             }
         }
 
-        function handleVideoError() {
-            document.getElementById('loadingMessage').classList.add('d-none');
-            document.getElementById('cameraError').classList.remove('d-none');
-            document.getElementById('videoFeed').classList.add('d-none');
-        }
+        function startVideoProcessing() {
+            const ctx = videoCanvas.getContext('2d');
+            videoCanvas.width = 640;
+            videoCanvas.height = 480;
 
-        function handleVideoLoad() {
-            document.getElementById('loadingMessage').classList.add('d-none');
-            document.getElementById('videoFeed').classList.remove('d-none');
-        }
+            async function processFrame() {
+                if (!isProcessing) {
+                    ctx.drawImage(userVideo, 0, 0, videoCanvas.width, videoCanvas.height);
+                    
+                    try {
+                        // Convert canvas to blob and send to server
+                        const blob = await new Promise(resolve => videoCanvas.toBlob(resolve, 'image/jpeg'));
+                        const formData = new FormData();
+                        formData.append('frame', blob);
 
-        // Check permissions when page loads
-        window.addEventListener('load', async () => {
-            document.getElementById('videoFeed').classList.add('d-none');
-            const hasPermission = await checkCameraPermissions();
-            if (!hasPermission) {
-                handleVideoError();
+                        const response = await fetch('/process_frame', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const result = await response.json();
+                        if (result.reps !== undefined) {
+                            repCounter.textContent = result.reps;
+                            stageIndicator.textContent = result.stage || '--';
+                        }
+                    } catch (error) {
+                        console.error('Error processing frame:', error);
+                    }
+                }
+                requestAnimationFrame(processFrame);
             }
-        });
+
+            processFrame();
+        }
+
+        function retryCamera() {
+            if (userVideo.srcObject) {
+                userVideo.srcObject.getTracks().forEach(track => track.stop());
+            }
+            startCamera();
+        }
+
+        startButton.addEventListener('click', startCamera);
     </script>
 </body>
 </html>
