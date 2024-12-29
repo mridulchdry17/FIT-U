@@ -31,26 +31,22 @@ def process_frame():
     global counter, stage
     
     try:
-        # Get the frame data from the request
+        # Get frame data
         frame_data = request.json['frame'].split(',')[1]
         frame_bytes = base64.b64decode(frame_data)
         np_arr = np.frombuffer(frame_bytes, np.uint8)
         frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         
-        # Process at lower resolution
-        frame = cv2.resize(frame, (320, 240))
-        
+        # Already receiving smaller frame, no need to resize
         with mp_pose.Pose(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5,
-            model_complexity=0,  # Use simplest model
-            smooth_landmarks=True  # Enable landmark smoothing
+            model_complexity=0,  # Fastest model
+            smooth_landmarks=True
         ) as pose:
-            # Process frame
+            # Convert to RGB and process
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            image.flags.writeable = False
             results = pose.process(image)
-            image.flags.writeable = True
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             
             if results.pose_landmarks:
@@ -66,15 +62,14 @@ def process_frame():
                 
                 angle = calculate_angles(shoulder, elbow, wrist)
                 
-                # Curl counter logic
+                # Counter logic
                 if angle > 160:
                     stage = "down"
                 if angle < 30 and stage == 'down':
                     stage = "up"
                     counter += 1
-            
-            # Optimize landmark drawing
-            if results.pose_landmarks:
+
+                # Draw landmarks efficiently
                 mp_drawing.draw_landmarks(
                     image, 
                     results.pose_landmarks, 
@@ -83,8 +78,8 @@ def process_frame():
                     mp_drawing.DrawingSpec(color=(245,66,230), thickness=1, circle_radius=1)
                 )
             
-            # Highly compress output image
-            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 30]  # 30% quality
+            # Compress output image
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 50]
             _, buffer = cv2.imencode('.jpg', image, encode_param)
             processed_frame = base64.b64encode(buffer).decode('utf-8')
             

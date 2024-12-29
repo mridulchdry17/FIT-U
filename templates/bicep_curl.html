@@ -90,52 +90,54 @@
         const cameraError = document.getElementById('cameraError');
 
         let isProcessing = false;
+        let processingInterval;
 
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
-                        width: 640,
-                        height: 480,
-                        facingMode: 'user'
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user',
+                        frameRate: { ideal: 30 }  // Optimize frame rate
                     } 
                 });
                 userVideo.srcObject = stream;
-                userVideo.play();
+                await userVideo.play();
                 startButton.style.display = 'none';
                 cameraError.style.display = 'none';
-                processFrames();
+                startProcessing();
             } catch (err) {
                 console.error('Error accessing camera:', err);
                 cameraError.style.display = 'block';
             }
         }
 
-        async function processFrames() {
-            const ctx = outputCanvas.getContext('2d');
-            let frameCount = 0;
-            let lastProcessedTime = 0;
-            const PROCESS_INTERVAL = 100; // Process every 100ms
-            
-            async function processFrame(timestamp) {
-                // Always draw the frame for smooth video
+        function startProcessing() {
+            const ctx = outputCanvas.getContext('2d', { alpha: false });  // Optimize canvas
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'low';  // Optimize quality
+
+            // Draw video continuously for smooth display
+            function drawVideo() {
                 ctx.drawImage(userVideo, 0, 0, outputCanvas.width, outputCanvas.height);
-                
-                // Check if enough time has passed since last processing
-                if (!isProcessing && (timestamp - lastProcessedTime) > PROCESS_INTERVAL) {
+                requestAnimationFrame(drawVideo);
+            }
+            drawVideo();
+
+            // Process frames at fixed interval
+            processingInterval = setInterval(async () => {
+                if (!isProcessing) {
                     isProcessing = true;
-                    lastProcessedTime = timestamp;
-                    
                     try {
-                        // Reduce size before sending
-                        const smallCanvas = document.createElement('canvas');
-                        const smallCtx = smallCanvas.getContext('2d');
-                        smallCanvas.width = 320;  // Half size
-                        smallCanvas.height = 240; // Half size
-                        smallCtx.drawImage(outputCanvas, 0, 0, 320, 240);
-                        
-                        // Reduce quality to 0.3 (30%)
-                        const frameData = smallCanvas.toDataURL('image/jpeg', 0.3);
+                        // Create smaller canvas for processing
+                        const processCanvas = document.createElement('canvas');
+                        processCanvas.width = 320;  // Reduced size
+                        processCanvas.height = 240;
+                        const processCtx = processCanvas.getContext('2d', { alpha: false });
+                        processCtx.drawImage(userVideo, 0, 0, 320, 240);
+
+                        const frameData = processCanvas.toDataURL('image/jpeg', 0.5);
                         
                         const response = await fetch('/process_frame', {
                             method: 'POST',
@@ -144,27 +146,18 @@
                             },
                             body: JSON.stringify({ frame: frameData })
                         });
-                        
+
                         const result = await response.json();
                         
                         if (result.counter !== undefined) {
                             repCount.textContent = result.counter;
                             stageText.textContent = result.stage || '--';
                         }
-                        
-                        // Draw landmarks efficiently
+
                         if (result.processed_frame) {
                             const img = new Image();
                             img.onload = () => {
-                                // Use double buffering to prevent flickering
-                                const tempCanvas = document.createElement('canvas');
-                                const tempCtx = tempCanvas.getContext('2d');
-                                tempCanvas.width = outputCanvas.width;
-                                tempCanvas.height = outputCanvas.height;
-                                
-                                tempCtx.drawImage(userVideo, 0, 0, outputCanvas.width, outputCanvas.height);
-                                tempCtx.drawImage(img, 0, 0, outputCanvas.width, outputCanvas.height);
-                                ctx.drawImage(tempCanvas, 0, 0);
+                                ctx.drawImage(img, 0, 0, outputCanvas.width, outputCanvas.height);
                             };
                             img.src = result.processed_frame;
                         }
@@ -174,10 +167,7 @@
                         isProcessing = false;
                     }
                 }
-                requestAnimationFrame(processFrame);
-            }
-            
-            requestAnimationFrame(processFrame);
+            }, 100);  // Process every 100ms
         }
 
         async function resetCounter() {
@@ -193,8 +183,11 @@
         startButton.addEventListener('click', startCamera);
         resetButton.addEventListener('click', resetCounter);
 
-        // Cleanup on page unload
+        // Cleanup
         window.addEventListener('beforeunload', () => {
+            if (processingInterval) {
+                clearInterval(processingInterval);
+            }
             if (userVideo.srcObject) {
                 userVideo.srcObject.getTracks().forEach(track => track.stop());
             }
